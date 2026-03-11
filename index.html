@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Operator DG Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+input, select{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border-radius:12px;
+  border:1px solid #ddd;
+  box-sizing:border-box;
+  font-size:14px;
+}
+button{
+  width:100%;
+  padding:14px;
+  margin-top:12px;
+  border:none;
+  border-radius:14px;
+  font-weight:700;
+  cursor:pointer;
+}
+body{font-family:Segoe UI;background:#f1f5f9;margin:0}
+header{background:#2563eb;color:#fff;padding:15px;text-align:center;font-weight:700;font-size:18px}
+.container{max-width:950px;margin:auto;padding:14px}
+.card{background:#fff;padding:14px;border-radius:12px;margin-bottom:14px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid #ddd;font-size:14px}
+.hidden{display:none}
+.profile{background:#eff6ff;border-left:5px solid #2563eb}
+.time-box{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.history-card{background:#ecfdf5;border-left:5px solid #16a34a}
+.save-btn{background:#16a34a;color:#fff}
+.edit-btn{background:#f59e0b;color:#fff}
+.cancel-btn{background:#dc2626;color:#fff}
+.well-details p{margin:3px 0;font-size:14px}
+</style>
+</head>
+
+<body>
+<header>⚡ OPERATOR DG PANEL</header>
+
+<div class="container">
+
+<div id="loginBox" class="card">
+<h3>Operator Login</h3>
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button style="background:#2563eb;color:#fff" onclick="login()">Login</button>
+<div id="msg" style="color:red;margin-top:8px"></div>
+</div>
+
+<div id="mainBox" class="hidden">
+<div id="profileBox" class="card profile"></div>
+
+<div class="card">
+<h3>🟡 Assigned Wells</h3>
+<div id="wellData">Loading...</div>
+</div>
+
+<div class="card">
+<h3>📜 DG History</h3>
+<div id="historyData">Loading...</div>
+</div>
+</div>
+</div>
+
+<script>
+function formatOnlyDate(dt){
+  if(!dt) return "";
+  let d = new Date(dt);
+
+  let dd = String(d.getDate()).padStart(2,'0');
+  let mm = String(d.getMonth()+1).padStart(2,'0');
+  let yyyy = d.getFullYear();
+
+  return `${dd}-${mm}-${yyyy}`;
+}
+const WEBAPP_URL="https://script.google.com/macros/s/AKfycbwupek1DhAv96BCqg-uJNTBcGbY19Dc_0HkGLgue8uG1AJJFFgUfEiuzHEMOYQzbPrdyA/exec";
+
+const OPERATORS=[
+ {username:"OP001",password:"123",name:"Ramesh Patel",mobile:"9001112233",company:"SURESH OIL FIELD"},
+ {username:"OP002",password:"123",name:"Amit Solanki",mobile:"9001112244",company:"SURESH OIL FIELD"}
+];
+
+let CURRENT_OPERATOR=null;
+/* ===== DATE FORMAT ===== */
+function formatDateTime(dt){
+  if(!dt) return "";
+  let d = new Date(dt);
+
+  let dd = String(d.getDate()).padStart(2,'0');
+  let mm = String(d.getMonth()+1).padStart(2,'0');
+  let yyyy = d.getFullYear();
+
+  let hh = String(d.getHours()).padStart(2,'0');
+  let min = String(d.getMinutes()).padStart(2,'0');
+
+  return `${dd}-${mm}-${yyyy} ${hh}:${min}`;
+}
+
+/* ===== TOTAL TIME ===== */
+function calcTotal(start, stop){
+  if(!start || !stop) return "";
+
+  let diff = new Date(stop) - new Date(start);
+  if(diff<=0) return "";
+
+  let mins = Math.floor(diff/60000);
+  let hrs = Math.floor(mins/60);
+  mins = mins % 60;
+
+  return `${hrs} Hrs ${mins} Min`;
+}
+
+/* LOGIN */
+function login(){
+ let u=OPERATORS.find(x=>x.username===user.value.trim() && x.password===pass.value.trim());
+ if(!u){msg.innerText="Invalid Login";return;}
+
+ CURRENT_OPERATOR=u;
+ loginBox.classList.add("hidden");
+ mainBox.classList.remove("hidden");
+
+ profileBox.innerHTML=`<b>Welcome:</b> ${u.name}<br>
+ <b>Company:</b> ${u.company}<br>
+ <b>Mobile:</b> ${u.mobile}`;
+
+ refresh();
+}
+
+/* LOAD PENDING */
+async function loadPending(){
+ try{
+   const res = await fetch(
+     WEBAPP_URL+"?action=operatorPending&mobile="+encodeURIComponent(CURRENT_OPERATOR.mobile.trim())
+   );
+
+   const data = await res.json();
+
+   if(!data || !data.length){
+     wellData.innerHTML="No Active Wells";
+     return;
+   }
+
+   let html="";
+
+   data.forEach(w=>{
+     html+=`
+     <div class="card">
+
+     <div class="well-details">
+      <p><b>Request ID:</b> ${w.requestId}</p>
+      <p><b>Installation:</b> ${w.installation}</p>
+      <p><b>Well:</b> ${w.well}</p>
+      <p><b>Requester:</b> ${w.requester}</p>
+      <p><b>Mobile:</b> ${w.requesterMobile}</p>
+      <p><b>Feeder:</b> ${w.feeder}</p>
+      <p><b>Shutdown Date:</b> ${formatOnlyDate(w.shutdownDate)}</p>
+     </div>
+
+      <div class="time-box">
+       <input type="datetime-local" id="start_${w.rowId}">
+       <input type="datetime-local" id="stop_${w.rowId}">
+      </div>
+
+     <textarea id="remark_${w.rowId}" 
+          class="hidden"
+          placeholder="Enter Cancel Remark..."></textarea>
+
+      <button id="save_${w.rowId}" class="save-btn"
+        onclick="localSave(${w.rowId})">💾 Save</button>
+
+      <button class="edit-btn" onclick="enableEdit(${w.rowId})">✏ Edit</button>
+      <button class="cancel-btn" 
+        onclick="showCancelBox(${w.rowId})">
+        ❌ Cancel DG
+</button>
+
+     </div>`;
+   });
+
+   wellData.innerHTML=html;
+
+ }catch(err){
+   console.error(err);
+   wellData.innerHTML="❌ Failed to load active wells";
+ }
+}
+
+/* SAVE TO SERVER */
+async function localSave(rowId){
+
+ try{
+
+   let s=document.getElementById("start_"+rowId).value;
+let e=document.getElementById("stop_"+rowId).value;
+
+let remarkField = document.getElementById("remark_"+rowId);
+let r = remarkField && remarkField.value.trim() ? remarkField.value.trim() : "NA";
+
+let total = calcTotal(s,e);
+   if(!s || !e){
+     alert("Enter Start & Stop Time");
+     return;
+   }
+
+   if(new Date(e)<=new Date(s)){
+     alert("Stop must be after Start");
+     return;
+   }
+
+   // ✅ Confirmation before saving
+   let confirmSave = confirm("Are you sure you want to submit this entry?");
+   if(!confirmSave) return;
+
+   const res = await fetch(
+     WEBAPP_URL+
+     "?action=operatorFinalSubmit"+
+     "&rowId="+encodeURIComponent(rowId)+
+     "&start="+encodeURIComponent(s)+
+     "&stop="+encodeURIComponent(e)+
+     "&remark="+encodeURIComponent(r)+
+     "&total="+encodeURIComponent(total)
+   );
+
+   const js = await res.json();
+
+   if(js.status==="success"){
+     enableLock(rowId,true);
+     alert("Entry Submitted Successfully ✅");
+     refresh();
+   }else{
+     alert("Error: "+js.message);
+   }
+
+ }catch(err){
+   console.error(err);
+   alert("❌ Save Failed");
+ }
+}
+
+/* SAFE LOCK */
+function enableLock(rowId,lock){
+ const s=document.getElementById("start_"+rowId);
+ const e=document.getElementById("stop_"+rowId);
+ const r=document.getElementById("remark_"+rowId);
+ const b=document.getElementById("save_"+rowId);
+
+ if(s) s.disabled=lock;
+ if(e) e.disabled=lock;
+ if(r) r.disabled=lock;
+ if(b) b.disabled=lock;
+}
+
+function enableEdit(rowId){ enableLock(rowId,false); }
+
+/* CANCEL */
+async function confirmCancel(rowId){
+
+  const remark = document.getElementById("remark_"+rowId).value.trim();
+
+  if(!remark){
+    alert("Please enter remark before cancelling DG");
+    return;
+  }
+
+  const ok = confirm("Are you sure you want to Cancel DG?");
+  if(!ok) return;
+
+  try{
+
+    const res = await fetch(
+      WEBAPP_URL+
+      "?action=operatorCancel"+
+      "&rowId="+encodeURIComponent(rowId)+
+      "&remark="+encodeURIComponent(remark)
+    );
+
+    const msg = (await res.text()).trim();
+
+    if(msg === "CANCELLED"){
+      alert("DG Cancelled Successfully");
+      enableLock(rowId,true);
+      refresh();
+    }else{
+      alert("Cancel Failed");
+    }
+
+  }catch(err){
+    console.error(err);
+    alert("❌ Cancel Failed");
+  }
+
+}
+function showCancelBox(rowId){
+
+  const remarkBox = document.getElementById("remark_"+rowId);
+  const startBox  = document.getElementById("start_"+rowId);
+  const stopBox   = document.getElementById("stop_"+rowId);
+
+  // Show remark box
+  remarkBox.classList.remove("hidden");
+  remarkBox.focus();
+
+  // Disable Start / Stop
+  if(startBox) startBox.disabled = true;
+  if(stopBox) stopBox.disabled = true;
+
+  // Change button text
+  event.target.innerText = "⚠ Confirm Cancel";
+
+  event.target.onclick = function(){
+    confirmCancel(rowId);
+  };
+}
+
+/* HISTORY */
+async function loadHistory(){
+ try{
+   const res = await fetch(
+     WEBAPP_URL+"?action=operatorHistory&mobile="+encodeURIComponent(CURRENT_OPERATOR.mobile.trim())
+   );
+   const data = await res.json();
+
+   if(!data || !data.length){
+     historyData.innerHTML="No History";
+     return;
+   }
+
+   let html="";
+   data.reverse().forEach(w=>{
+
+ let startFmt = formatDateTime(w.start);
+ let stopFmt  = formatDateTime(w.stop);
+ let totalFmt = calcTotal(w.start, w.stop) || w.total;
+
+ html+=`
+ <div class="card history-card">
+  <b>Request ID:</b> ${w.requestId}<br>
+  <b>Well:</b> ${w.well}<br>
+  <b>Start:</b> ${startFmt}<br>
+  <b>Stop:</b> ${stopFmt}<br>
+  <b>Total:</b> ${totalFmt}<br>
+  <b>Status:</b> ${w.status}<br>
+  <b>Remark:</b> ${w.remark||""}
+ </div>`;
+});
+   historyData.innerHTML=html;
+
+ }catch(err){
+   console.error(err);
+   historyData.innerHTML="❌ Failed to load history";
+ }
+}
+
+function refresh(){
+ loadPending();
+ loadHistory();
+}
+
+</script>
+</body>
+</html>
