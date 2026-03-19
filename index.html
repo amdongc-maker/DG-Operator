@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Operator DG Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+input, select{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  border-radius:12px;
+  border:1px solid #ddd;
+  box-sizing:border-box;
+  font-size:14px;
+}
+button{
+  width:100%;
+  padding:14px;
+  margin-top:12px;
+  border:none;
+  border-radius:14px;
+  font-weight:700;
+  cursor:pointer;
+}
+body{font-family:Segoe UI;background:#f1f5f9;margin:0}
+header{background:#2563eb;color:#fff;padding:15px;text-align:center;font-weight:700;font-size:18px}
+.container{max-width:950px;margin:auto;padding:14px}
+.card{background:#fff;padding:14px;border-radius:12px;margin-bottom:14px;box-shadow:0 4px 12px rgba(0,0,0,.08)}
+input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:1px solid #ddd;font-size:14px}
+.hidden{display:none}
+.profile{background:#eff6ff;border-left:5px solid #2563eb}
+.time-box{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.history-card{background:#ecfdf5;border-left:5px solid #16a34a}
+.save-btn{background:#16a34a;color:#fff}
+.cancel-btn{background:#dc2626;color:#fff}
+.well-details p{margin:3px 0;font-size:14px}
+</style>
+</head>
+
+<body>
+<header>⚡ OPERATOR DG PANEL</header>
+
+<div class="container">
+
+<div id="loginBox" class="card">
+<h3>Operator Login</h3>
+<input id="user" placeholder="Username">
+<input id="pass" type="password" placeholder="Password">
+<button style="background:#2563eb;color:#fff" onclick="login()">Login</button>
+<div id="msg" style="color:red;margin-top:8px"></div>
+</div>
+
+<div id="mainBox" class="hidden">
+<div id="profileBox" class="card profile"></div>
+
+<div class="card">
+<h3>🟡 Assigned Wells</h3>
+<div id="wellData">Loading...</div>
+</div>
+
+<div class="card">
+<h3>📜 DG History</h3>
+<div id="historyData">Loading...</div>
+</div>
+</div>
+</div>
+
+<script>
+
+const WEBAPP_URL="https://script.google.com/macros/s/AKfycbw0sDlTPWJa0H6Wj8ug6dGzttaWqIhW0X-B4MdwTfa_Q5Uw_YGS1qdkLAIznComZz5kRQ/exec";
+
+const OPERATORS=[
+ {username:"OP001",password:"123",name:"Ramesh Patel",mobile:"9001112233",company:"SURESH OIL FIELD"},
+ {username:"OP002",password:"123",name:"Amit Solanki",mobile:"9001112244",company:"SURESH OIL FIELD"}
+];
+
+let CURRENT_OPERATOR=null;
+
+/* LOGIN */
+function login(){
+ let u=OPERATORS.find(x=>x.username===user.value.trim() && x.password===pass.value.trim());
+ if(!u){msg.innerText="Invalid Login";return;}
+
+ CURRENT_OPERATOR=u;
+ loginBox.classList.add("hidden");
+ mainBox.classList.remove("hidden");
+
+ profileBox.innerHTML=`<b>Welcome:</b> ${u.name}<br>
+ <b>Company:</b> ${u.company}<br>
+ <b>Mobile:</b> ${u.mobile}`;
+
+ refresh();
+}
+
+/* LOAD PENDING */
+async function loadPending(){
+ try{
+   const res = await fetch(
+     WEBAPP_URL+"?action=operatorPending&mobile="+encodeURIComponent(CURRENT_OPERATOR.mobile.trim())
+   );
+
+   const data = await res.json();
+
+   if(!data || !data.length){
+     wellData.innerHTML="No Active Wells";
+     return;
+   }
+
+   let html="";
+
+   data.forEach(w=>{
+     html+=`
+     <div class="card" id="card_${w.rowId}">
+
+     <div class="well-details">
+      <p><b>Request ID:</b> ${w.requestId}</p>
+      <p><b>Installation:</b> ${w.installation}</p>
+      <p><b>Well:</b> ${w.well}</p>
+      <p><b>Requester:</b> ${w.requester}</p>
+      <p><b>Mobile:</b> ${w.requesterMobile}</p>
+      <p><b>Feeder:</b> ${w.feeder}</p>
+      <p><b>Shutdown Date:</b> ${w.shutdownDate}</p>
+     </div>
+
+      <div class="time-box">
+       <input type="datetime-local" id="start_${w.rowId}">
+       <input type="datetime-local" id="stop_${w.rowId}">
+      </div>
+
+     <textarea id="remark_${w.rowId}"placeholder="Remarks" class="hidden"></textarea>
+
+     <button id="save_${w.rowId}" class="save-btn"
+      onclick="localSave(${w.rowId})">💾 Save</button>
+
+     <button class="cancel-btn" 
+      onclick="showCancelBox(${w.rowId}, event)">
+      ❌ Cancel DG
+     </button>
+
+     </div>`;
+   });
+
+   wellData.innerHTML=html;
+
+ }catch(err){
+   console.error(err);
+   wellData.innerHTML="❌ Failed to load active wells";
+ }
+}
+
+/* SAVE */
+async function localSave(rowId){
+
+ const btn = document.getElementById("save_"+rowId);
+
+ try{
+
+   btn.disabled = true;
+   btn.innerText = "Saving...";
+
+   let s=document.getElementById("start_"+rowId).value;
+   let e=document.getElementById("stop_"+rowId).value;
+
+   if(!s || !e){alert("Enter Start & Stop Time");throw "err";}
+   if(new Date(e)<=new Date(s)){alert("Invalid Time");throw "err";}
+
+   const res = await fetch(
+     WEBAPP_URL+
+     "?action=operatorFinalSubmit"+
+     "&rowId="+rowId+
+     "&start="+encodeURIComponent(s)+
+     "&stop="+encodeURIComponent(e)+
+     "&remark=NA"
+   );
+
+   const js = await res.json();
+
+   if(js.status==="success"){
+     alert("✅ Entry Submitted");
+
+     // ✅ REMOVE CARD
+     document.getElementById("card_"+rowId).remove();
+
+     setTimeout(refresh,700);
+   }else{
+     throw "fail";
+   }
+
+ }catch(err){
+   btn.disabled = false;
+   btn.innerText = "💾 Save";
+   alert("❌ Save Failed");
+ }
+}
+
+/* CANCEL */
+function showCancelBox(rowId, e){
+
+  const remarkBox = document.getElementById("remark_"+rowId);
+  const startBox  = document.getElementById("start_"+rowId);
+  const stopBox   = document.getElementById("stop_"+rowId);
+  const saveBtn   = document.getElementById("save_"+rowId);
+  const cancelBtn = e.target;
+
+  remarkBox.classList.remove("hidden");
+
+  startBox.style.display = "none";
+  stopBox.style.display = "none";
+  saveBtn.style.display = "none";
+
+  cancelBtn.innerText = "⚠ Confirm Cancel";
+
+  cancelBtn.onclick = function(){
+    confirmCancel(rowId);
+  };
+}
+
+async function confirmCancel(rowId){
+
+  let remark = document.getElementById("remark_"+rowId).value;
+
+  if(!remark){
+    alert("Enter remark");
+    return;
+  }
+
+  try{
+
+    const res = await fetch(
+      WEBAPP_URL+
+      "?action=operatorCancel"+
+      "&rowId="+rowId+
+      "&remark="+encodeURIComponent(remark)
+    );
+
+    const txt = await res.text();
+
+    if(txt==="CANCELLED"){
+      alert("❌ DG Cancelled");
+
+      document.getElementById("card_"+rowId).remove();
+
+      setTimeout(refresh,700);
+    }else{
+      throw "fail";
+    }
+
+  }catch(err){
+    alert("❌ Cancel Failed");
+  }
+}
+
+/* HISTORY */
+async function loadHistory(){
+ try{
+   const res = await fetch(
+     WEBAPP_URL+"?action=operatorHistory&mobile="+encodeURIComponent(CURRENT_OPERATOR.mobile.trim())
+   );
+   const data = await res.json();
+
+   if(!data || !data.length){
+     historyData.innerHTML="No History";
+     return;
+   }
+
+   let html="";
+   data.reverse().forEach(w=>{
+
+ html+=`
+ <div class="card history-card">
+  <b>Request ID:</b> ${w.requestId}<br>
+  <b>Well:</b> ${w.well}<br>
+  <b>Total:</b> ${w.total}<br>
+  <b>Status:</b> ${w.status}<br>
+  <b>Remark:</b> ${w.remark||""}
+ </div>`;
+});
+   historyData.innerHTML=html;
+
+ }catch(err){
+   console.error(err);
+   historyData.innerHTML="❌ Failed to load history";
+ }
+}
+
+function refresh(){
+ loadPending();
+ loadHistory();
+}
+
+</script>
+</body>
+</html>
