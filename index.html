@@ -68,7 +68,15 @@ input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:10px;border:
 </div>
 
 <script>
+function formatDate(val){
+  if(!val || val === "NA") return "NA";
 
+  let d = new Date(val);
+
+  if(isNaN(d.getTime())) return "NA";
+
+  return d.toLocaleDateString("en-GB"); // 23/03/2026
+}
 const WEBAPP_URL="https://script.google.com/macros/s/AKfycbw0sDlTPWJa0H6Wj8ug6dGzttaWqIhW0X-B4MdwTfa_Q5Uw_YGS1qdkLAIznComZz5kRQ/exec";
 
 const OPERATORS=[
@@ -121,7 +129,7 @@ async function loadPending(){
       <p><b>Requester:</b> ${w.requester}</p>
       <p><b>Mobile:</b> ${w.requesterMobile}</p>
       <p><b>Feeder:</b> ${w.feeder}</p>
-      <p><b>Shutdown Date:</b> ${w.shutdownDate}</p>
+      <p><b>Shutdown Date:</b> ${formatDate(w.shutdownDate)}</p>
      </div>
 
       <div class="time-box">
